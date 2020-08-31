@@ -27,6 +27,20 @@ interface ICoordinate {
   y:number;
 }
 
+//enums
+enum PlayDirection {
+  Up,
+  Down,
+  Left,
+  Right
+}
+
+enum CellType {
+  Head,
+  Body,
+  Food
+}
+
 //Initialize array function
 const boardInitialize = (gameDimension: number): Array<object[]> => {
   const rows = [];
@@ -90,17 +104,35 @@ const getNextFood = (player: ICoordinate[], gameDimension: number): ICoordinate 
 }  
 
 //Check if input is valid
-const validateDirection = (d1: string, d2: string): boolean => {
+const validateDirection = (d1: PlayDirection, d2: PlayDirection): boolean => {
   if(!( (d1 === d2) ||
-        (d1 === "UP" && d2 === "DOWN") || 
-        (d1 === "DOWN" && d2 === "UP") ||
-        (d1 === "LEFT" && d2 === "RIGHT") ||
-        (d1 === "RIGHT" && d2 === "LEFT") ))
+        (d1 === PlayDirection.Up && d2 === PlayDirection.Down) || 
+        (d1 === PlayDirection.Down && d2 === PlayDirection.Up) ||
+        (d1 === PlayDirection.Left && d2 === PlayDirection.Right) ||
+        (d1 === PlayDirection.Right && d2 === PlayDirection.Left) ))
   {
     return true;
   }
 
   return false;
+}
+
+//Draw arrow instead of direction code
+const getDirectionArrow = (d: PlayDirection): string => {
+  switch (d) {
+    case PlayDirection.Down : {
+      return "↓";
+    }
+    case PlayDirection.Left: {
+      return "←";
+    }
+    case PlayDirection.Right: {
+      return "→";
+    }
+    default: {
+      return "↑";
+    }
+  }
 }
 
 const Snake: React.FC<IGameProps> = ({gameDimension, 
@@ -159,17 +191,18 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
   //States -- used for display screen data
   const [player, setPlayer] = useState<ICoordinate[]>(getInitialPlayer(gameDimension));
   const [food, setFood] = useState<ICoordinate>(getNextFood(player, gameDimension));
-  const [nextDirection, setNextDirection] = useState<string>("UP");
+  const [nextDirection, setNextDirection] = useState<PlayDirection>(PlayDirection.Up);
   const [gameRunningState, setGameRunningState] = useState<boolean>(false);
   const [gamePaused, setGamePaused] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
+  const [speedInfo, setSpeedInfo] = useState<number>(gameSpeedSettings.initialSpeed);
   
   //Refs -- used for internal game processing
   const gameRef = useRef<HTMLDivElement>(null);
   const gameRunning = useRef<boolean>(false);
   const timeoutId = useRef<NodeJS.Timeout>();
-  const direction = useRef<string>("UP");
+  const direction = useRef<PlayDirection>(PlayDirection.Up);
   const snake = useRef<ICoordinate[]>(player);
   const foodRef = useRef<ICoordinate>(food);
   const foodBuffer = useRef<number>(0);
@@ -177,16 +210,16 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
   const gameSpeed = useRef<number>(gameSpeedSettings.initialSpeed);
 
    //Calbacks - game processing functions
-   const getGameCellClass = useCallback((type?: string):string => {
+   const getGameCellClass = useCallback((type?: CellType):string => {
     let cellClass: string = "gameCell";
 
     switch(type)
     {
-      case "FOOD":
+      case CellType.Food:
         return cellClass += " gameCellFood";
-      case "HEAD":
+      case CellType.Head:
         return cellClass += " gameCellSnakeHead";
-      case "BODY":
+      case CellType.Body:
         return cellClass += " gameCellSnakeBody";
     }
 
@@ -198,18 +231,18 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       <div key={`row_${i}`} className="gameRow" style={rowDimensions}>
         {
           x.map((y, j) => {
-            let typeCell: string = "";
+            let typeCell: CellType | undefined;
             if(player[0].x === j && player[0].y === i)
             {
-              typeCell = "HEAD";
+              typeCell = CellType.Head;
             }
             else if(player.some(p => p.x === j && p.y === i))
             {
-              typeCell = "BODY"
+              typeCell = CellType.Body
             }
             else if(food.x === j && food.y === i)
             {
-              typeCell = "FOOD"
+              typeCell = CellType.Food
             }
 
             return (<div key={`cell_${i},${j}`} className={getGameCellClass(typeCell)} style={cellDimensions}></div>)
@@ -229,8 +262,8 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
     foodRef.current = getNextFood(snake.current, gameDimension);
     setFood(foodRef.current);
     setGameOver(false);
-    setNextDirection("UP");
-    direction.current = "UP";
+    setNextDirection(PlayDirection.Up);
+    direction.current = PlayDirection.Up;
     gameSpeed.current = gameSpeedSettings.initialSpeed;
     setScore(0);
     scoreBase.current = 0;
@@ -267,19 +300,19 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
         let directionUpdate = direction.current;
         if(event.keyCode === 38 || event.keyCode === 87)
         {
-          directionUpdate = "UP";
+          directionUpdate = PlayDirection.Up;
         }
         else if(event.keyCode === 40 || event.keyCode === 83)
         {
-          directionUpdate = "DOWN";
+          directionUpdate = PlayDirection.Down;
         }
         else if(event.keyCode === 37 || event.keyCode === 65)
         {
-          directionUpdate ="LEFT";
+          directionUpdate = PlayDirection.Left;
         }
         else if(event.keyCode === 39 || event.keyCode === 68)
         {
-          directionUpdate = "RIGHT";
+          directionUpdate = PlayDirection.Right;
         }
 
         if(validateDirection(directionUpdate, direction.current))
@@ -296,7 +329,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
     // eslint-disable-next-line
   }, [setNextDirection, gameRunning, pauseStartGame])
     
-  const updatePlayer = useCallback( (selectedDirection: string) => {
+  const updatePlayer = useCallback( (selectedDirection: PlayDirection) => {
     let newPlayer = [...snake.current];
     let tempX = newPlayer[0].x;
     let tempY = newPlayer[0].y;
@@ -307,19 +340,19 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       foodBuffer.current += foodExpansion;
     }
 
-    if(selectedDirection === "UP")
+    if(selectedDirection === PlayDirection.Up)
     {
       newPlayer[0].y--;
     }
-    else if(selectedDirection === "DOWN")
+    else if(selectedDirection === PlayDirection.Down)
     {
       newPlayer[0].y++;
     }
-    else if(selectedDirection === "LEFT")
+    else if(selectedDirection === PlayDirection.Left)
     {
       newPlayer[0].x--;
     }
-    else if(selectedDirection === "RIGHT")
+    else if(selectedDirection === PlayDirection.Right)
     {
       newPlayer[0].x++;
     }
@@ -389,6 +422,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
             {
               gameSpeed.current = gameSpeedSettings.minSpeed;
             }
+            setSpeedInfo(Math.floor(gameSpeed.current));
           }
         }
       }
@@ -427,6 +461,23 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
     }, gameSpeed.current);
   }, [updatePlayer, timeoutId, gameRunning, direction]);
 
+  //Get the score div info
+  const scoreInfo = useMemo(() => {
+    return  (<div className="gameScores">
+                <b>Score:</b>
+                <br />
+                {score}
+                <br />
+                <br />
+                <b>Speed:</b>
+                <br />
+                {`x${Math.floor(scoreBase.current / gameSpeedSettings.speedFoodQuantity) + 1} `}<small>{`(${speedInfo}ms)`}</small>
+                <br />
+                <br />
+                <b>Going:&nbsp;&nbsp;{getDirectionArrow(nextDirection)}</b>
+            </div>)
+  }, [score, gameSpeedSettings, speedInfo, nextDirection])
+
   //effect - initial configuration, focus and handle game start
   useEffect(() => {
     if(gameRef && gameRef.current)
@@ -451,19 +502,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
     <div className="background">
       <div className="gameBoard" style={boardDimension} tabIndex={1} ref = {gameRef} onKeyDown={(event) => updateDirection(event)}>
         {drawBoard()}
-        <div className="gameScores">
-          Score:
-          <br />
-          {score}
-          <br />
-          Speed:
-          <br />
-          {`x${Math.floor(scoreBase.current / gameSpeedSettings.speedFoodQuantity) + 1}`}
-          <br />
-          Direction:
-          <br />
-          {nextDirection}
-        </div>
+        {scoreInfo}
         {(gameOver || gamePaused) && <div className="gameOverBanner">GAME {gamePaused ? "PAUSED" : "OVER"}</div>}
         {!gameOver ? <div className="gameStart" onClick={() => pauseStartGame()}>
           {`${gameRunningState ? "Pause" : gamePaused ? "Continue" : "Start"} Game`}
