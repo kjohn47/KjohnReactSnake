@@ -4,8 +4,8 @@ import './Snake.css';
 
 //interfaces
 interface IGameProps {
-  gameDimension: number;
-  cellPx: number;
+  columnRowRatio?: number;
+  widthHeightRatio?: number;
   foodPoints?: number;
   initialSpeed?: number;
   speedFoodQuantity?: number;
@@ -135,8 +135,8 @@ const getDirectionArrow = (d: PlayDirection): string => {
   }
 }
 
-const Snake: React.FC<IGameProps> = ({gameDimension, 
-                                      cellPx, 
+const Snake: React.FC<IGameProps> = ({columnRowRatio, 
+                                      widthHeightRatio, 
                                       expansionRate, 
                                       initialSpeed, 
                                       speedDecreaseRate, 
@@ -146,6 +146,16 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
                                       saveGameKey}) => {
 
   //Memos - constants for game configuration based on props
+  const gameDimension = useMemo(() => columnRowRatio && columnRowRatio >= 10 ? columnRowRatio : 10, [columnRowRatio]);
+
+  const cellPx = useMemo(() => widthHeightRatio && widthHeightRatio >= 15 ? widthHeightRatio : 15, [widthHeightRatio]);
+
+  const foodExpansion = useMemo((): number => expansionRate && expansionRate > 0 ? expansionRate : 1, [expansionRate]);
+
+  const gameFoodPoints = useMemo(() => foodPoints && foodPoints > 0 ? foodPoints : 1, [foodPoints]);
+
+  const maxSnakeLenght = useMemo(() => (gameDimension * gameDimension) - 1, [gameDimension]);
+
   const boardArray = useMemo(() => boardInitialize(gameDimension), [gameDimension]);
 
   const boardDimension = useMemo((): React.CSSProperties => {
@@ -154,25 +164,21 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       width: widhtHeightStr,
       height: widhtHeightStr
     }
-  }, [gameDimension, cellPx])
+  }, [gameDimension, cellPx]);
 
   const rowDimensions = useMemo((): React.CSSProperties => {
     return {
       width: `${(gameDimension * cellPx)}px`,
       height: `${cellPx}px`
     }
-  }, [gameDimension, cellPx])
+  }, [gameDimension, cellPx]);
 
   const cellDimensions = useMemo((): React.CSSProperties => {
     return {
       width: `${cellPx}px`,
       height: `${cellPx}px`
     }
-  }, [cellPx])
-
-  const foodExpansion = useMemo((): number => {    
-    return expansionRate && expansionRate > 0 ? expansionRate : 1;
-  }, [expansionRate])
+  }, [cellPx]);
 
   const gameSpeedSettings = useMemo(():IGameSpeed => {
     let baseSpeed = initialSpeed && initialSpeed > 100 && initialSpeed < 1000 ? initialSpeed : 250;
@@ -182,11 +188,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       speedFoodQuantity: speedFoodQuantity && speedFoodQuantity > 0 ? speedFoodQuantity : 10,
       minSpeed: minSpeed && minSpeed > 0 && minSpeed < baseSpeed ? minSpeed : 50
     };
-  }, [initialSpeed, speedDecreaseRate, speedFoodQuantity, minSpeed])
-
-  const gameFoodPoints = useMemo(() => {
-    return foodPoints && foodPoints > 0 ? foodPoints : 1;
-  }, [foodPoints])
+  }, [initialSpeed, speedDecreaseRate, speedFoodQuantity, minSpeed]);
 
   //States -- used for display screen data
   const [player, setPlayer] = useState<ICoordinate[]>(getInitialPlayer(gameDimension));
@@ -197,6 +199,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [speedInfo, setSpeedInfo] = useState<number>(gameSpeedSettings.initialSpeed);
+  const [winner, setWinner] = useState<boolean>(false);
   
   //Refs -- used for internal game processing
   const gameRef = useRef<HTMLDivElement>(null);
@@ -254,7 +257,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
           boardArray, 
           getGameCellClass, 
           rowDimensions, 
-          cellDimensions])
+          cellDimensions]);
 
   const newGame = useCallback(() => {
     snake.current = getInitialPlayer(gameDimension);
@@ -268,12 +271,16 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
     setScore(0);
     scoreBase.current = 0;
     foodBuffer.current = 0;
+    setWinner(false);
+    setSpeedInfo(gameSpeedSettings.initialSpeed);
   }, [gameDimension, 
       setPlayer, 
       setFood, 
       setGameOver,
       gameSpeedSettings, 
-      setScore])
+      setScore,
+      setWinner,
+      setSpeedInfo]);
 
   const pauseStartGame = useCallback( () => {
     setGamePaused(prev => !prev && gameRunningState);
@@ -286,7 +293,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       setGamePaused(true);
       setGameRunningState(false);
     }
-  }, [setGamePaused, setGameRunningState])
+  }, [setGamePaused, setGameRunningState]);
 
   const updateDirection = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if(event.keyCode === 32)
@@ -327,7 +334,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       }
     }
     // eslint-disable-next-line
-  }, [setNextDirection, gameRunning, pauseStartGame])
+  }, [setNextDirection, gameRunning, pauseStartGame]);
     
   const updatePlayer = useCallback( (selectedDirection: PlayDirection) => {
     let newPlayer = [...snake.current];
@@ -364,10 +371,9 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       newPlayer[0].y >= gameDimension ||      
       newPlayer.some((p, i) => i === 0 ? false : p.x === newPlayer[0].x && p.y === newPlayer[0].y))
     {
-      if(gameOver && timeoutId.current)
-      {
+      if(timeoutId.current)
         clearTimeout(timeoutId.current);
-      }
+
       gameRunning.current = false;
       setGameRunningState(false);
       setGameOver(true);
@@ -377,6 +383,10 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
 
       snake.current = newPlayer;
       setPlayer(snake.current);
+      if(snake.current.length >= maxSnakeLenght)
+      {
+        setWinner(true);
+      }
     }
 
     else
@@ -405,24 +415,37 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
         {
           scoreBase.current++;
           setScore(scoreBase.current * gameFoodPoints);
-          foodRef.current = getNextFood(snake.current, gameDimension);
-          setFood(foodRef.current);
-          if(scoreBase.current > 0 && scoreBase.current % gameSpeedSettings.speedFoodQuantity === 0)
+          if(snake.current.length >= maxSnakeLenght - 1)
           {
-            let newSpeed = gameSpeed.current;
-            let decreaseQuantity = gameSpeedSettings.speedDecreaseRate / 20 * newSpeed;
-
-            newSpeed -= decreaseQuantity;
-
-            if(newSpeed >= gameSpeedSettings.minSpeed)
+            //Game Win
+            if(timeoutId.current)
+              clearTimeout(timeoutId.current);
+            gameRunning.current = false;
+            setGameRunningState(false);
+            setWinner(true);
+            setGameOver(true);
+          }
+          else
+          {
+            foodRef.current = getNextFood(snake.current, gameDimension);
+            setFood(foodRef.current);
+            if(scoreBase.current > 0 && scoreBase.current % gameSpeedSettings.speedFoodQuantity === 0)
             {
-              gameSpeed.current = newSpeed;
+              let newSpeed = gameSpeed.current;
+              let decreaseQuantity = gameSpeedSettings.speedDecreaseRate / 20 * newSpeed;
+
+              newSpeed -= decreaseQuantity;
+
+              if(newSpeed >= gameSpeedSettings.minSpeed)
+              {
+                gameSpeed.current = newSpeed;
+              }
+              else if(newSpeed < gameSpeedSettings.minSpeed)
+              {
+                gameSpeed.current = gameSpeedSettings.minSpeed;
+              }
+              setSpeedInfo(Math.floor(gameSpeed.current));
             }
-            else if(newSpeed < gameSpeedSettings.minSpeed)
-            {
-              gameSpeed.current = gameSpeedSettings.minSpeed;
-            }
-            setSpeedInfo(Math.floor(gameSpeed.current));
           }
         }
       }
@@ -438,13 +461,14 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       snake, 
       foodRef, 
       gameDimension, 
-      gameOver, 
+      setGameOver, 
       foodExpansion, 
       scoreBase, 
       setScore, 
       gameFoodPoints, 
       gameSpeed, 
-      gameSpeedSettings])
+      gameSpeedSettings,
+      maxSnakeLenght]);
 
   const playGame = useCallback(() => {
     updatePlayer(direction.current);
@@ -476,7 +500,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
                 <br />
                 <b>Going:&nbsp;&nbsp;{getDirectionArrow(nextDirection)}</b>
             </div>)
-  }, [score, gameSpeedSettings, speedInfo, nextDirection])
+  }, [score, gameSpeedSettings, speedInfo, nextDirection]);
 
   //effect - initial configuration, focus and handle game start
   useEffect(() => {
@@ -487,7 +511,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       document.removeEventListener( "mousedown", pauseClickOut );
     };
   // eslint-disable-next-line
-  }, [])
+  }, []);
 
   useEffect(() => {
     gameRunning.current = gameRunningState;
@@ -496,14 +520,14 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
       playGame();
     }
     // eslint-disable-next-line
-  }, [gameRunningState])
+  }, [gameRunningState]);
 
   return (
     <div className="background">
       <div className="gameBoard" style={boardDimension} tabIndex={1} ref = {gameRef} onKeyDown={(event) => updateDirection(event)}>
         {drawBoard()}
         {scoreInfo}
-        {(gameOver || gamePaused) && <div className="gameOverBanner">GAME {gamePaused ? "PAUSED" : "OVER"}</div>}
+        {(gameOver || gamePaused) && <div className="gameOverBanner">GAME {gamePaused ? "PAUSED" : "OVER"}{winner && ( <span><br />You won the game!</span>)}</div>}
         {!gameOver ? <div className="gameStart" onClick={() => pauseStartGame()}>
           {`${gameRunningState ? "Pause" : gamePaused ? "Continue" : "Start"} Game`}
         </div>
