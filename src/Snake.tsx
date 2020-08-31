@@ -281,7 +281,7 @@ const Snake: React.FC<IGameProps> = ({gameDimension,
   }, [gameRunningState, setGamePaused, setGameRunningState]);
 
   const pauseClickOut = useCallback((event: any) => {
-    if(gameRef && gameRef.current && !gameRef.current.contains( event.target ))
+    if(gameRunning.current && gameRef && gameRef.current && !gameRef.current.contains( event.target ))
     {
       setGamePaused(true);
       setGameRunningState(false);
